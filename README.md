@@ -119,11 +119,11 @@ No, not enough, need to create a network.
 ## Router/Network Connectivity
 
 ```
-./bin/openstack network create thenet
+./bin/openstack network create eosc-net
 ```
 
 ```
-./bin/openstack router create theway
+./bin/openstack subnet create --network eosc-net --subnet-range 192.168.10.0/24 --dns-nameserver 8.8.8.8 eosc-subnet
 ```
 
 List the networks.
@@ -132,31 +132,68 @@ List the networks.
 ./bin/openstack network list
 ```
 
-Then use e.g., `PSNC-EXT-IPV6-PUB2-EDU`.
+Create router.
 
 ```
-./bin/openstack router set --external-gateway PSNC-EXT-IPV6-PUB2-EDU theway
+./bin/openstack router create eosc-router
 ```
 
-List the subnet pools.
+Attach subnet to router (for traffic to flow out).
 
 ```
-./bin/openstack subnet pool list
+./bin/openstack router add subnet eosc-router eosc-subnet
 ```
 
-Then use e.g., `bgp-vlan92-pub2v6-pool1`.
+Set gateway.
 
 ```
-./bin/openstack subnet create thev6 --network thenet --ip-version 6 --subnet-pool bgp-vlan92-pub2v6-pool1 --prefix-length 64 --ipv6-ra-mode dhcpv6-stateless --ipv6-address-mode dhcpv6-stateless
+./bin/openstack router set eosc-router --external-gateway PSNC-EXT-PUB1-EDU
 ```
 
+Boot VM on private network.
+
 ```
-./bin/openstack router add subnet theway thev6
+./bin/openstack server create --flavor m1-nvme-1-4-50 thevm --image debian-13 --key-name ed25519 --network eosc-net
+```
+
+Allocate floating IP.
+
+```
+./bin/openstack floating ip create PSNC-EXT-PUB1-EDU
+```
+
+Attach IP.
+
+```
+./bin/openstack server add floating ip thevm <IP>
+```
+
+## Log into VM via SSH
+
+Check routing.
+
+```
+./bin/openstack router show eosc-router
+```
+
+
+Check VM IP address.
+
+```
+./bin/openstack server show thevm -c addresses
+```
+
+Finally, log into the machine.
+
+```
+ssh debian@<IP>
 ```
 
 
 
 ## Security Group
+
+Not sure that is needed...
 
 Allow ICMP for ping:
 
@@ -168,49 +205,4 @@ Allow SSH:
 
 ```
 ./bin/openstack security group rule create --proto tcp --dst-port 22 --remote-ip ::/0 --ethertype IPv6 default
-```
-
-
-
-## Re-create the VM
-
-
-Now with the network:
-
-```
-./bin/openstack server create --flavor m1-nvme-1-4-50 thevm --image debian-13 --key-name ed25519 --network thenet
-```
-
-Show the console:
-
-```
-./bin/openstack console log show thevm
-```
-
-Says:
-
-```
-ci-info: no authorized SSH keys fingerprints found for user debian.
-```
-
-Ping the machine:
-
-```
-$ ping 2001:808:3:60a:f816:3eff:fe3a:644d
-PING 2001:808:3:60a:f816:3eff:fe3a:644d (2001:808:3:60a:f816:3eff:fe3a:644d) 56 data bytes
-64 bytes from 2001:808:3:60a:f816:3eff:fe3a:644d: icmp_seq=1 ttl=240 time=85.6 ms
-64 bytes from 2001:808:3:60a:f816:3eff:fe3a:644d: icmp_seq=2 ttl=240 time=30.8 ms
-^C
-```
-
-SSH into the machine:
-
-```
-$ ssh debian@2001:808:3:60a:f816:3eff:fe3a:644d
-The authenticity of host '2001:808:3:60a:f816:3eff:fe3a:644d (2001:808:3:60a:f816:3eff:fe3a:644d)' can't be established.
-ED25519 key fingerprint is SHA256:/hw0pqEHTfoD+dbTs3Ykw3dmSeKh8+gxncd0veRgkSo.
-This key is not known by any other names.
-Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
-Warning: Permanently added '2001:808:3:60a:f816:3eff:fe3a:644d' (ED25519) to the list of known hosts.
-debian@2001:808:3:60a:f816:3eff:fe3a:644d: Permission denied (publickey).
 ```
