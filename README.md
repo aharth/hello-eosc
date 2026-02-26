@@ -1,6 +1,6 @@
 # Hello European Open Science Cloud
 
-EOSC EU Node
+EOSC EU Node (on eu-1).
 
 
 ## Install OpenStack
